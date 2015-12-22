@@ -1,9 +1,7 @@
-package com.github.svetlinzarev.playground.euler.problem14;
+package com.github.svetlinzarev.playground.contest.euler.problem14;
 
 import org.junit.Assert;
 import org.junit.Test;
-
-import com.github.svetlinzarev.playground.euler.problem14.CollatzConjecture;
 
 public class CollatzConjectureTest {
 

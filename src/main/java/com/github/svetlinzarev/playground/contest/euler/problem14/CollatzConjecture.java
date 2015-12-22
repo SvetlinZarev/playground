@@ -1,4 +1,4 @@
-package com.github.svetlinzarev.playground.euler.problem14;
+package com.github.svetlinzarev.playground.contest.euler.problem14;
 
 import com.github.svetlinzarev.playground.util.stopwatch.Stopwatch;
 
