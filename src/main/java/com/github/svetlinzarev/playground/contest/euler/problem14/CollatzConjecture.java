@@ -20,7 +20,7 @@ public class CollatzConjecture {
         int longestSequenceLength = 0;
 
         Stopwatch stopwatch = new Stopwatch();
-        for (int sequence = 1, length = 0; sequence < MAX_N; sequence++, length = 0) {
+        for (int sequence = 1, length = 1; sequence <= MAX_N; sequence++, length = 0) {
             long currentSequence = sequence;
 
             while (!isComputed(currentSequence) && !isCached(currentSequence, sequence)) {
@@ -51,7 +51,7 @@ public class CollatzConjecture {
     }
 
     static long nextInSequence(long number) {
-        return ((number & 1) == 0) ? (number / 2) : (number * 3 + 1);
+        return ((number & 1) == 0) ? (number >> 1) : (number * 3 + 1);
     }
 
 }
