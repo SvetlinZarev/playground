@@ -3,9 +3,7 @@ package com.github.svetlinzarev.playground.tool.http.loadgen;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.net.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -17,7 +15,7 @@ import static java.lang.String.format;
 public class LoadGenerator {
     private static final byte[] DISCARD_BUFFER = new byte[1024 * 8];
 
-    public static void main(String[] args) throws MalformedURLException, InterruptedException {
+    public static void main(String[] args) throws Exception {
         final int numberOfRequests = Integer.parseInt(args[0]);
         final int concurrencyLevel = Integer.parseInt(args[1]);
         final URL urlAddress = new URL(args[2]);
@@ -30,6 +28,7 @@ public class LoadGenerator {
         final AtomicLong transferredBytes = new AtomicLong();
         final AtomicInteger deltaTransferredData = new AtomicInteger();
 
+        final Proxy proxy = getProxyConfiguration(urlAddress);
         final ExecutorService executor = Executors.newFixedThreadPool(concurrencyLevel);
         final CountDownLatch countDownLatch = new CountDownLatch(numberOfRequests);
 
@@ -42,11 +41,11 @@ public class LoadGenerator {
         for (int i = 0; i < numberOfRequests; i++) {
             executor.execute(() -> {
                 try {
-                    final HttpURLConnection connection = (HttpURLConnection) urlAddress.openConnection();
+                    final HttpURLConnection connection = (HttpURLConnection) urlAddress.openConnection(proxy);
                     connection.setRequestProperty("Accept-Encoding", "gzip");
                     connection.setRequestProperty("User-Agent", "Simple Load Runner");
                     connection.setUseCaches(false);
-                    connection.setConnectTimeout(5000);
+                    connection.setConnectTimeout(15000);
                     connection.setReadTimeout(15000);
 
                     try (InputStream inputStream = getResponseStream(connection)) {
@@ -62,27 +61,27 @@ public class LoadGenerator {
                         numberOfSuccessfulRequests.incrementAndGet();
                         deltaSuccessfulRequests.incrementAndGet();
                     }
+
+                    long deltaTime = System.currentTimeMillis() - lastStatisticsUpdateTime.get();
+                    if (deltaTime >= 1000) {
+                        synchronized (LoadGenerator.class) {
+                            deltaTime = System.currentTimeMillis() - lastStatisticsUpdateTime.get();
+                            if (deltaTime > 1000) {
+                                lastStatisticsUpdateTime.set(System.currentTimeMillis());
+                                final int deltaSuccessful = deltaSuccessfulRequests.getAndSet(0);
+                                final int deltaFailed = deltaFailedRequests.getAndSet(0);
+                                final long deltaBytes = deltaTransferredData.getAndSet(0);
+
+                                printStatistics(deltaSuccessful, deltaFailed, deltaTime, deltaBytes);
+                            }
+                        }
+                    }
                 } catch (Exception exception) {
                     numberOfFailedRequests.incrementAndGet();
                     deltaFailedRequests.incrementAndGet();
                     System.err.println(exception);
                 } finally {
                     countDownLatch.countDown();
-                }
-
-                long deltaTime = System.currentTimeMillis() - lastStatisticsUpdateTime.get();
-                if (deltaTime >= 1000) {
-                    synchronized (LoadGenerator.class) {
-                        deltaTime = System.currentTimeMillis() - lastStatisticsUpdateTime.get();
-                        if (deltaTime > 1000) {
-                            lastStatisticsUpdateTime.set(System.currentTimeMillis());
-                            final int deltaSuccessful = deltaSuccessfulRequests.getAndSet(0);
-                            final int deltaFailed = deltaFailedRequests.getAndSet(0);
-                            final long deltaBytes = deltaTransferredData.getAndSet(0);
-
-                            printStatistics(deltaSuccessful, deltaFailed, deltaTime, deltaBytes);
-                        }
-                    }
                 }
             });
         }
@@ -94,8 +93,18 @@ public class LoadGenerator {
         printStatistics(numberOfSuccessfulRequests.get(), numberOfFailedRequests.get(), totalTimeMillis, transferredBytes.get());
     }
 
-    private static double toSeconds(long millis) {
-        return millis / 1_000.0;
+    private static Proxy getProxyConfiguration(URL address) throws URISyntaxException {
+        Proxy selectedProxy = Proxy.NO_PROXY;
+        final ProxySelector proxySelector = ProxySelector.getDefault();
+        for (Proxy proxy : proxySelector.select(address.toURI())) {
+            if (proxy.type().equals(Proxy.Type.HTTP)) {
+                selectedProxy = proxy;
+                break;
+            }
+        }
+
+        System.out.println("### Proxy: " + selectedProxy);
+        return selectedProxy;
     }
 
     private static InputStream getResponseStream(HttpURLConnection connection) throws IOException {
@@ -119,6 +128,10 @@ public class LoadGenerator {
         return transferredBytes;
     }
 
+    private static double toSeconds(long millis) {
+        return millis / 1_000.0;
+    }
+
     private static void printStatistics(int successfulRequests, int failedRequests, long timeMillis, long transferredBytes) {
         final double totalTimeSec = toSeconds(timeMillis);
         System.out.println("\n################################################################################");
@@ -130,5 +143,6 @@ public class LoadGenerator {
         System.out.println(format("KB/second: %.2f", (transferredBytes / 1024.0) / totalTimeSec));
         System.out.println("################################################################################");
     }
+
 }
 
