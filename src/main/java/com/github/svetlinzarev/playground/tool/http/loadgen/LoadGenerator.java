@@ -4,13 +4,12 @@ package com.github.svetlinzarev.playground.tool.http.loadgen;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.lang.String.format;
+import static java.net.Proxy.Type.HTTP;
 
 public class LoadGenerator {
     private static final byte[] DISCARD_BUFFER = new byte[1024 * 8];
@@ -30,6 +29,7 @@ public class LoadGenerator {
 
         final Proxy proxy = getProxyConfiguration(urlAddress);
         final ExecutorService executor = Executors.newFixedThreadPool(concurrencyLevel);
+        final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
         final CountDownLatch countDownLatch = new CountDownLatch(numberOfRequests);
 
         //warm up the executor
@@ -61,21 +61,6 @@ public class LoadGenerator {
                         numberOfSuccessfulRequests.incrementAndGet();
                         deltaSuccessfulRequests.incrementAndGet();
                     }
-
-                    long deltaTime = System.currentTimeMillis() - lastStatisticsUpdateTime.get();
-                    if (deltaTime >= 1000) {
-                        synchronized (LoadGenerator.class) {
-                            deltaTime = System.currentTimeMillis() - lastStatisticsUpdateTime.get();
-                            if (deltaTime > 1000) {
-                                lastStatisticsUpdateTime.set(System.currentTimeMillis());
-                                final int deltaSuccessful = deltaSuccessfulRequests.getAndSet(0);
-                                final int deltaFailed = deltaFailedRequests.getAndSet(0);
-                                final long deltaBytes = deltaTransferredData.getAndSet(0);
-
-                                printStatistics(deltaSuccessful, deltaFailed, deltaTime, deltaBytes);
-                            }
-                        }
-                    }
                 } catch (Exception exception) {
                     numberOfFailedRequests.incrementAndGet();
                     deltaFailedRequests.incrementAndGet();
@@ -86,8 +71,17 @@ public class LoadGenerator {
             });
         }
 
-        executor.shutdown();
+        scheduledExecutorService.scheduleAtFixedRate(() -> {
+            final long deltaTime = System.currentTimeMillis() - lastStatisticsUpdateTime.getAndSet(System.currentTimeMillis());
+            final int deltaSuccessful = deltaSuccessfulRequests.getAndSet(0);
+            final int deltaFailed = deltaFailedRequests.getAndSet(0);
+            final long deltaBytes = deltaTransferredData.getAndSet(0);
+            printStatistics(deltaSuccessful, deltaFailed, deltaTime, deltaBytes);
+        }, 0, 1_000, TimeUnit.MILLISECONDS);
+
         countDownLatch.await();
+        executor.shutdown();
+        scheduledExecutorService.shutdown();
 
         final long totalTimeMillis = System.currentTimeMillis() - startTotalTime;
         printStatistics(numberOfSuccessfulRequests.get(), numberOfFailedRequests.get(), totalTimeMillis, transferredBytes.get());
@@ -97,7 +91,7 @@ public class LoadGenerator {
         Proxy selectedProxy = Proxy.NO_PROXY;
         final ProxySelector proxySelector = ProxySelector.getDefault();
         for (Proxy proxy : proxySelector.select(address.toURI())) {
-            if (proxy.type().equals(Proxy.Type.HTTP)) {
+            if (proxy.type().equals(HTTP)) {
                 selectedProxy = proxy;
                 break;
             }
@@ -132,7 +126,7 @@ public class LoadGenerator {
         return millis / 1_000.0;
     }
 
-    private static void printStatistics(int successfulRequests, int failedRequests, long timeMillis, long transferredBytes) {
+    private static synchronized void printStatistics(int successfulRequests, int failedRequests, long timeMillis, long transferredBytes) {
         final double totalTimeSec = toSeconds(timeMillis);
         System.out.println("\n################################################################################");
         System.out.println("Successful requests: " + successfulRequests);
