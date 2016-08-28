@@ -56,7 +56,7 @@ public final class UrlEncoder {
     /**
      * The initial capacity of the newly allocated StringBuilders
      */
-    private static final int INITIAL_STRING_BUILDER_CAPACITY = 128;
+    private static final int INITIAL_STRING_BUILDER_CAPACITY = 64;
 
     /**
      * Mask for extracting the lower four bits of a byte
@@ -146,6 +146,14 @@ public final class UrlEncoder {
                 result.append(character);
                 nextCharacterIndex++;
             } else {
+                /*
+                 * Recycle the char buffer, because the last fillInputBuffer()
+                 * call may have flipped an empty buffer, hence making the
+                 * position and limit equal to 0. No need to recycle the
+                 * byte buffer, as flushOutputBuffer() always recycles it
+                 */
+                recycle(inputBuffer);
+
                 int charsRead;
                 while ((charsRead = fillInputBuffer(string, inputBuffer, nextCharacterIndex)) != 0) {
                     nextCharacterIndex += charsRead;
@@ -169,14 +177,6 @@ public final class UrlEncoder {
 
                 //Prepare the encoder for the next set of encode() operations if any
                 encoder.reset();
-
-                /*
-                 * Recycle the char buffer, because the last fillInputBuffer()
-                 * call may have flipped an empty buffer, hence making the
-                 * position and limit equal to 0. No need to recycle the
-                 * byte buffer, as flushOutputBuffer() always recycles it
-                 */
-                recycle(inputBuffer);
             }
         }
 
