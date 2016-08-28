@@ -355,10 +355,4 @@ public final class UrlEncoder {
         }
         pool.offer(poolEntry);
     }
-
-
-    public static void main(String[] args) {
-        UrlEncoder encoder = new UrlEncoder();
-        System.out.println(encoder.encode("Can you encode me ? Можеш ли да ме кодираш ?", StandardCharsets.UTF_8));
-    }
 }
