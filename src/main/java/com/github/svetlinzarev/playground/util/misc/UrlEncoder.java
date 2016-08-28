@@ -197,7 +197,7 @@ public final class UrlEncoder {
     private int fillInputBuffer(String source, CharBuffer dest, int readFrom) {
         int charsRead = 0;
         if (source.length() > readFrom) {
-            for (int i = readFrom; dest.hasRemaining() && i < source.length(); i++) {
+            for (int i = readFrom; dest.hasRemaining() & i < source.length(); i++) {
                 final char c = source.charAt(i);
                 if (safeCharacters.get(c)) {
                     break;
@@ -269,7 +269,7 @@ public final class UrlEncoder {
     }
 
     private void requireCorrectEncodingResult(CoderResult result, String source, int charsRead, int nextCharIndex) {
-        if (!result.isUnderflow() && !result.isOverflow()) {
+        if (result.isError()) {
             final String errorDetails = "\tSource: '" + source + "'" +
                     "\tNext character index: '" + nextCharIndex + "'" +
                     "\tChars read: '" + charsRead + "'" +
