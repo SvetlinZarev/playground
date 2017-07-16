@@ -3,25 +3,26 @@ package com.github.svetlinzarev.playground.simulation.lottary;
 import java.util.Random;
 
 public final class Toto {
+    private static final int NUMBER_OF_SIMULATIONS = 10_000_000;
     private final int numberOfBalls;
-    private final int numberOfSelectedBalls;
+    private final int numberOfBallsToSelect;
 
-    public Toto(int numberOfBalls, int numberOfSelectedBalls) {
+    public Toto(int numberOfBalls, int numberOfBallsToSelect) {
         this.numberOfBalls = numberOfBalls;
-        this.numberOfSelectedBalls = numberOfSelectedBalls;
+        this.numberOfBallsToSelect = numberOfBallsToSelect;
     }
 
     public double findProbabilityOfWinning(int numberOfBallsToGuess, int numberOfSimulations) {
-        if (numberOfBallsToGuess > numberOfSelectedBalls) {
-            throw new IllegalArgumentException("The number of guessed balls must be less than or equals to the number of selected balls.");
+        if (numberOfBallsToGuess > numberOfBallsToSelect) {
+            throw new IllegalArgumentException("The number of guessed balls must be less than or equals to the number of balls to select.");
         }
         final Random random = new Random();
 
         int numberOfGuesses = 0;
         for (int sim = 0; sim < numberOfSimulations; sim++) {
             int ballsGuessed = 0;
-            for (int i = 0; i < numberOfSelectedBalls; i++) {
-                if (numberOfSelectedBalls - ballsGuessed > random.nextInt(numberOfBalls)) {
+            for (int selectedBalls = 0; selectedBalls < numberOfBallsToSelect; selectedBalls++) {
+                if (numberOfBallsToSelect - ballsGuessed > random.nextInt(numberOfBalls - selectedBalls)) {
                     ballsGuessed++;
                 }
             }
@@ -39,13 +40,13 @@ public final class Toto {
         printProbabilitiesFor(35, 5);
     }
 
-    private static void printProbabilitiesFor(int numberOfBalls, int numberOfSelectedBalls) {
+    private static void printProbabilitiesFor(int numberOfBalls, int numberOfBallsToSelect) {
         System.out.println("################################################################################");
-        Toto toto = new Toto(numberOfBalls, numberOfSelectedBalls);
-        for (int i = 0; i <= numberOfSelectedBalls; i++) {
-            final double probability = toto.findProbabilityOfWinning(i, 10_000_000);
-            System.out.printf("Probability of guessing %d balls out of %d/%d is %f\n",
-                    i, numberOfSelectedBalls, numberOfBalls, probability * 100);
+        Toto toto = new Toto(numberOfBalls, numberOfBallsToSelect);
+        for (int i = 0; i <= numberOfBallsToSelect; i++) {
+            final double probability = toto.findProbabilityOfWinning(i, NUMBER_OF_SIMULATIONS);
+            System.out.printf("Probability of guessing %d balls out of %d/%d is %.6e\n",
+              i, numberOfBallsToSelect, numberOfBalls, probability);
         }
         System.out.println();
     }
