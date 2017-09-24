@@ -60,12 +60,12 @@ public final class DeepLoggingHandler extends AbstractAroundInvokeHandler {
     @Override
     protected Object invokeInternal(Object proxy, Method method, Object[] args) throws Throwable {
         final Object result = method.invoke(target, args);
-        final Class returnType = resolveActualReturnType(method);
-        return proxy(result, returnType);
+        final Class proxyType = resolveTypeToProxy(method);
+        return proxy(result, proxyType);
     }
 
-    private Class<?> resolveActualReturnType(Method method) throws NoSuchMethodException {
-        final Class<?> actualReturnType = resolvedReturnTypes.computeIfAbsent(method, m -> {
+    private Class<?> resolveTypeToProxy(Method method) throws NoSuchMethodException {
+        final Class<?> resolvedReturnType = resolvedReturnTypes.computeIfAbsent(method, m -> {
             final Class<?> proxiedClassReturnType = m.getReturnType();
 
             if (proxiedClassReturnType.equals(Void.TYPE)) {
@@ -74,22 +74,40 @@ public final class DeepLoggingHandler extends AbstractAroundInvokeHandler {
 
             //Due to type erasure, if the return type is generic then it will be object
             if (!proxiedClassReturnType.equals(Object.class)) {
-                return proxiedClassReturnType;
+
+                //The return type is not generic, but still might be an interface
+                if (!proxiedClassReturnType.isInterface()) {
+                    return proxiedClassReturnType;
+                }
             }
 
-            //Try to resolve the actual type in case the interface return type is generic
+            /*
+             * Due to type erasure if the return type is generic, it will appear as  'java.lang.Object'
+             * in the proxy method. Also the return type might be an interface that extends the one from
+             * the super interface. So in those cases we have to check the actual return type from the
+             * implementing class.
+             */
             try {
                 final String methodName = m.getName();
                 final Class<?>[] parameterTypes = m.getParameterTypes();
                 final Method actualMethod = target.getClass().getMethod(methodName, parameterTypes);
-                return actualMethod.getReturnType();
+                final Class<?> actualMethodReturnType = actualMethod.getReturnType();
+                if (actualMethodReturnType.isInterface()) {
+                    return actualMethodReturnType;
+                }
+
+                /*
+                 * The actual method return type is not an interface, so we'll not be able to proxy it.
+                 * The proxy method return type is either object, or an interface, so return it instead.
+                 */
+                return proxiedClassReturnType;
             } catch (NoSuchMethodException ex) {
                 //Should never happen: The target class implements the method from the proxied interface
                 return proxiedClassReturnType;
             }
         });
 
-        return actualReturnType;
+        return resolvedReturnType;
     }
 
     @Override
