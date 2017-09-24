@@ -1,6 +1,7 @@
 package com.github.svetlinzarev.playground.reflection;
 
 import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -16,10 +17,17 @@ public abstract class AbstractAroundInvokeHandler implements InvocationHandler {
             logger.log(Level.SEVERE, "Failed to execute around-invoke 'before' action: ", ex);
         }
 
-        Exception exception = null;
+        Throwable exception = null;
         Object result = null;
         try {
             result = invokeInternal(proxy, method, args);
+        } catch (InvocationTargetException ex) {
+            final Throwable cause = ex.getCause();
+            if(null != cause){
+                exception = cause;
+            }else {
+                exception = ex;
+            }
         } catch (Exception ex) {
             exception = ex;
         } finally {
@@ -42,5 +50,5 @@ public abstract class AbstractAroundInvokeHandler implements InvocationHandler {
 
     protected abstract Object invokeInternal(Object proxy, Method method, Object[] args) throws Throwable;
 
-    protected abstract void after(Method method, Object[] args, Object result, Exception ex);
+    protected abstract void after(Method method, Object[] args, Object result, Throwable ex);
 }

@@ -111,7 +111,7 @@ public final class DeepLoggingHandler extends AbstractAroundInvokeHandler {
     }
 
     @Override
-    protected void after(Method method, Object[] args, Object result, Exception ex) {
+    protected void after(Method method, Object[] args, Object result, Throwable ex) {
         if (logger.isLoggable(Level.FINEST)) {
             message.setLength(0);
             message.append(TAG_AFTER)
