@@ -1,6 +1,7 @@
 package com.github.svetlinzarev.playground.reflection;
 
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
@@ -28,10 +29,12 @@ public final class DeepLoggingHandler extends AbstractAroundInvokeHandler {
     }
 
 
-    private final Object target;
-    private final StringBuilder message;
-    private final Map<Method, Class<?>> resolvedReturnTypes;
     private final ClassLoader classLoader;
+    private final Object target;
+    private final Map<Method, Class<?>> resolvedReturnTypes;
+    private final StringBuilder message;
+
+    private long executionTimeNanos;
 
 
     private DeepLoggingHandler(Object target, ClassLoader classLoader) {
@@ -61,9 +64,18 @@ public final class DeepLoggingHandler extends AbstractAroundInvokeHandler {
 
     @Override
     protected Object invokeInternal(Object proxy, Method method, Object[] args) throws Throwable {
-        final Object result = method.invoke(target, args);
+        final Object result = invokeAndMeasureExecutionTime(method, args);
         final Class proxyType = resolveTypeToProxy(method);
         return tryToProxy(result, proxyType, classLoader);
+    }
+
+    private Object invokeAndMeasureExecutionTime(Method method, Object[] args) throws IllegalAccessException, InvocationTargetException {
+        final long startTime = System.nanoTime();
+        try {
+            return method.invoke(target, args);
+        } finally {
+            executionTimeNanos = System.nanoTime() - startTime;
+        }
     }
 
     private Class<?> resolveTypeToProxy(Method method) throws NoSuchMethodException {
@@ -135,7 +147,13 @@ public final class DeepLoggingHandler extends AbstractAroundInvokeHandler {
               .append(method.getName())
               .append('(');
             appendArrayTo(message, method.getParameterTypes(), typePrinter);
-            message.append(')');
+            message.append(')')
+              .append(" finished for ")
+              .append(executionTimeNanos / 1_000_000)
+              .append(" millis");
+            if (ex != null) {
+                message.append(" and failed with exception: ").append(ex);
+            }
 
             final String msg = message.toString();
             logger.log(Level.FINEST, msg);
