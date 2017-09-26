@@ -31,12 +31,14 @@ public final class DeepLoggingHandler extends AbstractAroundInvokeHandler {
     private final Object target;
     private final StringBuilder message;
     private final Map<Method, Class<?>> resolvedReturnTypes;
+    private final ClassLoader classLoader;
 
 
-    public DeepLoggingHandler(Object target) {
+    private DeepLoggingHandler(Object target, ClassLoader classLoader) {
         this.target = Objects.requireNonNull(target);
         this.message = new StringBuilder(128);
         this.resolvedReturnTypes = new HashMap<>();
+        this.classLoader = classLoader;
     }
 
     @Override
@@ -61,7 +63,7 @@ public final class DeepLoggingHandler extends AbstractAroundInvokeHandler {
     protected Object invokeInternal(Object proxy, Method method, Object[] args) throws Throwable {
         final Object result = method.invoke(target, args);
         final Class proxyType = resolveTypeToProxy(method);
-        return proxy(result, proxyType);
+        return tryToProxy(result, proxyType, classLoader);
     }
 
     private Class<?> resolveTypeToProxy(Method method) throws NoSuchMethodException {
@@ -110,6 +112,18 @@ public final class DeepLoggingHandler extends AbstractAroundInvokeHandler {
         return resolvedReturnType;
     }
 
+    private static Object tryToProxy(Object instance, Class<?> iface, ClassLoader classLoader) {
+        if (null == instance) {
+            return null;
+        }
+
+        if (!iface.isInterface()) {
+            return instance;
+        }
+
+        return Proxy.newProxyInstance(classLoader, new Class[]{iface}, new DeepLoggingHandler(instance, classLoader));
+    }
+
     @Override
     protected void after(Method method, Object[] args, Object result, Throwable ex) {
         if (logger.isLoggable(Level.FINEST)) {
@@ -143,27 +157,29 @@ public final class DeepLoggingHandler extends AbstractAroundInvokeHandler {
         }
     }
 
-    public static <T> T proxy(T instance, Class<T> iface) {
-        if (null == instance || !iface.isInterface()) {
-            return instance;
-        }
-
-        final ClassLoader classLoader = getClassLoader(iface);
-        return (T) proxy(instance, new Class<?>[]{iface}, classLoader);
+    public static <T> T proxy(T instance, Class<T> iface, ClassLoader classLoader) {
+        return (T) proxy(instance, new Class[]{iface}, classLoader);
     }
 
     public static Object proxy(Object instance, Class<?>[] ifaces, ClassLoader classLoader) {
-        return Proxy.newProxyInstance(classLoader, ifaces, new DeepLoggingHandler(instance));
-    }
+        if (null == instance) {
+            return instance;
+        }
 
-    private static ClassLoader getClassLoader(Class<?> iface) {
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        if (null == classLoader) {
-            classLoader = iface.getClassLoader();
-            if (null == classLoader) {
-                classLoader = ClassLoader.getSystemClassLoader();
+        if (null == ifaces || ifaces.length == 0) {
+            throw new IllegalArgumentException("You must specify interfaces to proxy.");
+        }
+
+        for (Class<?> iface : ifaces) {
+            if (!iface.isInterface()) {
+                throw new IllegalArgumentException("The provided class is not an interface: " + iface);
+            }
+
+            if (!iface.isAssignableFrom(instance.getClass())) {
+                throw new IllegalArgumentException("The provided object instance does not implement the provided interface: " + iface);
             }
         }
-        return classLoader;
+
+        return Proxy.newProxyInstance(classLoader, ifaces, new DeepLoggingHandler(instance, classLoader));
     }
 }

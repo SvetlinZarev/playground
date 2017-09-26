@@ -1,6 +1,8 @@
 package com.github.svetlinzarev.playground.reflection;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 
 import java.lang.reflect.Proxy;
 
@@ -8,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DeepLoggingHandlerTest {
     private interface ParentInterface {
         ParentInterface getObject();
@@ -27,6 +30,21 @@ class DeepLoggingHandlerTest {
         T getObject();
     }
 
+    private ClassLoader classLoader;
+
+    @BeforeAll
+    public void beforeAll() {
+        classLoader = getClassLoader();
+    }
+
+    private static ClassLoader getClassLoader() {
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        if (null == classLoader) {
+            classLoader = ClassLoader.getSystemClassLoader();
+        }
+        return classLoader;
+    }
+
     @Test
     public void testProxySimpleInterface() {
         final Runnable originalObject = new Runnable() {
@@ -36,7 +54,7 @@ class DeepLoggingHandlerTest {
             }
         };
 
-        final Runnable proxiedObject = DeepLoggingHandler.proxy(originalObject, Runnable.class);
+        final Runnable proxiedObject = DeepLoggingHandler.proxy(originalObject, Runnable.class, classLoader);
         assertTrue(Proxy.isProxyClass(proxiedObject.getClass()), "The object should have been proxied!");
     }
 
@@ -44,7 +62,7 @@ class DeepLoggingHandlerTest {
     public void testProxySimpleInterfaceViaLambda() {
         final Runnable originalObject = () -> {/* do nothing */ };
 
-        final Runnable proxiedObject = DeepLoggingHandler.proxy(originalObject, Runnable.class);
+        final Runnable proxiedObject = DeepLoggingHandler.proxy(originalObject, Runnable.class, classLoader);
         assertTrue(Proxy.isProxyClass(proxiedObject.getClass()), "The object should have been proxied!");
     }
 
@@ -57,7 +75,7 @@ class DeepLoggingHandlerTest {
             }
         };
 
-        final ParentInterface proxiedParent = DeepLoggingHandler.proxy(original, ParentInterface.class);
+        final ParentInterface proxiedParent = DeepLoggingHandler.proxy(original, ParentInterface.class, classLoader);
         final ParentInterface proxiedChild = proxiedParent.getObject();
 
         assertTrue(Proxy.isProxyClass(proxiedChild.getClass()), "The object should have been proxied!");
@@ -77,7 +95,7 @@ class DeepLoggingHandlerTest {
             }
         };
 
-        final ParentInterface proxiedParent = DeepLoggingHandler.proxy(original, ParentInterface.class);
+        final ParentInterface proxiedParent = DeepLoggingHandler.proxy(original, ParentInterface.class, classLoader);
         final ParentInterface proxiedChild = proxiedParent.getObject();
 
         assertTrue(Proxy.isProxyClass(proxiedChild.getClass()), "The object should have been proxied!");
@@ -93,14 +111,14 @@ class DeepLoggingHandlerTest {
             }
         };
 
-        final ParentInterface proxiedParent = DeepLoggingHandler.proxy(original, ParentInterface.class);
+        final ParentInterface proxiedParent = DeepLoggingHandler.proxy(original, ParentInterface.class, classLoader);
         final ParentInterface proxiedChild = proxiedParent.getObject();
 
         assertTrue(Proxy.isProxyClass(proxiedChild.getClass()), "The object should have been proxied!");
     }
 
     @Test
-    public void testProxyingOfGenericInterfaces_withClass(){
+    public void testProxyingOfGenericInterfaces_withClass() {
         final GenericInterface<Object> original = new GenericInterface<Object>() {
             @Override
             public Object getObject() {
@@ -108,14 +126,14 @@ class DeepLoggingHandlerTest {
             }
         };
 
-        final GenericInterface<Object> proxied = DeepLoggingHandler.proxy(original, GenericInterface.class);
+        final GenericInterface<Object> proxied = DeepLoggingHandler.proxy(original, GenericInterface.class, classLoader);
         final Object proxiedChild = proxied.getObject();
 
         assertFalse(Proxy.isProxyClass(proxiedChild.getClass()));
     }
 
     @Test
-    public void testProxyingOfGenericInterfaces_withInterfaceViaLambda(){
+    public void testProxyingOfGenericInterfaces_withInterfaceViaLambda() {
         final GenericInterface<ParentInterface> original = new GenericInterface<ParentInterface>() {
             @Override
             public ParentInterface getObject() {
@@ -123,14 +141,14 @@ class DeepLoggingHandlerTest {
             }
         };
 
-        final GenericInterface<ParentInterface> proxied = DeepLoggingHandler.proxy(original, GenericInterface.class);
+        final GenericInterface<ParentInterface> proxied = DeepLoggingHandler.proxy(original, GenericInterface.class, classLoader);
         final ParentInterface proxiedChild = proxied.getObject();
 
         assertTrue(Proxy.isProxyClass(proxiedChild.getClass()));
     }
 
     @Test
-    public void testProxyingOfGenericInterfaces_withSubInterfaceViaLambda(){
+    public void testProxyingOfGenericInterfaces_withSubInterfaceViaLambda() {
         final GenericInterface<ParentInterface> original = new GenericInterface<ParentInterface>() {
             @Override
             public ChildInterface getObject() {
@@ -138,7 +156,7 @@ class DeepLoggingHandlerTest {
             }
         };
 
-        final GenericInterface<ParentInterface> proxied = DeepLoggingHandler.proxy(original, GenericInterface.class);
+        final GenericInterface<ParentInterface> proxied = DeepLoggingHandler.proxy(original, GenericInterface.class, classLoader);
         final ParentInterface proxiedChild = proxied.getObject();
 
         assertTrue(Proxy.isProxyClass(proxiedChild.getClass()), "The object should have been proxied!");
