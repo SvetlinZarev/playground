@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
 import java.lang.reflect.Proxy;
+import java.util.concurrent.Callable;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -64,6 +66,28 @@ class DeepLoggingHandlerTest {
 
         final Runnable proxiedObject = DeepLoggingHandler.proxy(originalObject, Runnable.class, classLoader);
         assertTrue(Proxy.isProxyClass(proxiedObject.getClass()), "The object should have been proxied!");
+    }
+
+    @Test
+    public void testProxyingOfMultipleInterfaces() throws Exception {
+        class TestObj implements ParentInterface, Callable {
+            @Override
+            public ParentInterface getObject() {
+                return null; //no-op
+            }
+
+            @Override
+            public Object call() throws Exception {
+                return null; //no-op
+            }
+        }
+
+        final Object proxy = DeepLoggingHandler.proxy(
+          new TestObj(), new Class[]{ParentInterface.class, Callable.class}, classLoader
+        );
+
+        assertTrue(proxy instanceof ParentInterface);
+        assertTrue(proxy instanceof Callable);
     }
 
     @Test
@@ -162,4 +186,82 @@ class DeepLoggingHandlerTest {
         assertTrue(Proxy.isProxyClass(proxiedChild.getClass()), "The object should have been proxied!");
         assertTrue(proxiedChild instanceof ChildInterface, "The object should be instance of the child interface");
     }
+
+
+    @Test
+    public void testDeepProxyingOfMultipleInterfaces() throws Exception {
+        class ChildObj implements Callable, Runnable {
+            @Override
+            public void run() {/*no-op*/}
+
+            @Override
+            public Object call() {
+                return null; /*no-op*/
+            }
+        }
+
+        class TestObj implements GenericInterface<Callable> {
+            @Override
+            public Callable getObject() {
+                return new ChildObj();
+            }
+        }
+
+        final GenericInterface<Callable> proxy = DeepLoggingHandler.proxy(
+          new TestObj(), GenericInterface.class, classLoader
+        );
+
+        final Callable childProxy = proxy.getObject();
+
+        assertTrue(Proxy.isProxyClass(childProxy.getClass()));
+        assertTrue(childProxy instanceof Runnable);
+    }
+
+    @Test
+    public void testDeepProxyingWithMultipleInterfacesAndParentClass() throws Exception {
+        class ChildObj extends ChildClass implements Runnable {
+            @Override
+            public void run() {/*no-op*/}
+        }
+
+        final Supplier<Runnable> proxy = DeepLoggingHandler.proxy(
+          new Supplier<Runnable>() { //intentionally not a lambda
+              @Override
+              public Runnable get() { //return thr interface, otherwise it won't be proxied
+                  return new ChildObj();
+              }
+          }, Supplier.class, classLoader
+        );
+
+        final Runnable childProxy = proxy.get();
+
+        assertTrue(Proxy.isProxyClass(childProxy.getClass()));
+        assertTrue(childProxy instanceof ParentInterface);
+    }
+
+    @Test
+    public void testDeepProxyWithRepeatedInterfaces() throws Exception {
+        class ChildObj extends ChildClass implements Runnable, ParentInterface {
+            @Override
+            public void run() {/*no-op*/}
+        }
+
+        class TestObj implements GenericInterface<Runnable> {
+            @Override
+            public Runnable getObject() {
+                return new ChildObj();
+            }
+        }
+
+        final GenericInterface<Runnable> proxy = DeepLoggingHandler.proxy(
+          new TestObj(), GenericInterface.class, classLoader
+        );
+
+        final Runnable childProxy = proxy.getObject();
+
+        assertTrue(Proxy.isProxyClass(childProxy.getClass()));
+        assertTrue(childProxy instanceof ParentInterface);
+
+    }
+
 }

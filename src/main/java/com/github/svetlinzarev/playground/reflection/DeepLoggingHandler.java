@@ -5,9 +5,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.lang.reflect.Type;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -65,8 +63,14 @@ public final class DeepLoggingHandler extends AbstractAroundInvokeHandler {
     @Override
     protected Object invokeInternal(Object proxy, Method method, Object[] args) throws Throwable {
         final Object result = invokeAndMeasureExecutionTime(method, args);
-        final Class proxyType = resolveTypeToProxy(method);
-        return tryToProxy(result, proxyType, classLoader);
+
+        try {
+            final Class returnType = resolveActualReturnType(method);
+            return tryToProxy(result, returnType, classLoader);
+        } catch (ReflectiveOperationException | RuntimeException ex) {
+            logger.log(Level.SEVERE, "Failed to proxy the result object: ", ex);
+            return result;
+        }
     }
 
     private Object invokeAndMeasureExecutionTime(Method method, Object[] args) throws IllegalAccessException, InvocationTargetException {
@@ -78,7 +82,7 @@ public final class DeepLoggingHandler extends AbstractAroundInvokeHandler {
         }
     }
 
-    private Class<?> resolveTypeToProxy(Method method) throws NoSuchMethodException {
+    private Class<?> resolveActualReturnType(Method method) throws NoSuchMethodException {
         final Class<?> resolvedReturnType = resolvedReturnTypes.computeIfAbsent(method, m -> {
             final Class<?> proxiedClassReturnType = m.getReturnType();
 
@@ -116,7 +120,8 @@ public final class DeepLoggingHandler extends AbstractAroundInvokeHandler {
                  */
                 return proxiedClassReturnType;
             } catch (NoSuchMethodException ex) {
-                //Should never happen: The target class implements the method from the proxied interface
+                //Should never happen because the target class implements the method from the proxied interface
+                logger.log(Level.SEVERE, "Should never happen: ", ex);
                 return proxiedClassReturnType;
             }
         });
@@ -124,16 +129,39 @@ public final class DeepLoggingHandler extends AbstractAroundInvokeHandler {
         return resolvedReturnType;
     }
 
-    private static Object tryToProxy(Object instance, Class<?> iface, ClassLoader classLoader) {
+    private static Object tryToProxy(Object instance, Class<?> returnType, ClassLoader classLoader) {
         if (null == instance) {
             return null;
         }
 
-        if (!iface.isInterface()) {
+        if (!returnType.isInterface()) {
             return instance;
         }
 
-        return Proxy.newProxyInstance(classLoader, new Class[]{iface}, new DeepLoggingHandler(instance, classLoader));
+        final Class<?>[] interfaces = collectAllImplementedInterfaces(instance);
+
+         /*
+         * Note: asserts are not executed during "normal" execution
+         *
+         * As the result have been returned from the proxied method, it has to
+         * implement directly or indirectly it's return type interface
+         */
+        assert Set.of(interfaces).stream().anyMatch(iface -> iface.isAssignableFrom(returnType));
+
+        return Proxy.newProxyInstance(classLoader, interfaces, new DeepLoggingHandler(instance, classLoader));
+    }
+
+    private static Class<?>[] collectAllImplementedInterfaces(Object instance) {
+        final Class<?> instanceClass = instance.getClass();
+        final Set<Class<?>> interfaces = new HashSet<>();
+        for (Class klass = instanceClass; !klass.equals(Object.class); klass = klass.getSuperclass()) {
+            final Class<?>[] ifaces = klass.getInterfaces();
+            for (Class<?> iface : ifaces) {
+                interfaces.add(iface);
+            }
+        }
+
+        return interfaces.toArray(new Class[interfaces.size()]);
     }
 
     @Override
