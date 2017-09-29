@@ -23,9 +23,9 @@ public abstract class AbstractAroundInvokeHandler implements InvocationHandler {
             result = invokeInternal(proxy, method, args);
         } catch (InvocationTargetException ex) {
             final Throwable cause = ex.getCause();
-            if(null != cause){
+            if (null != cause) {
                 exception = cause;
-            }else {
+            } else {
                 exception = ex;
             }
         } catch (Exception ex) {
@@ -46,9 +46,13 @@ public abstract class AbstractAroundInvokeHandler implements InvocationHandler {
     }
 
 
-    protected abstract void before(Method method, Object[] args);
+    protected void before(Method method, Object[] args) throws Exception {
+        //no-op
+    }
+
+    protected void after(Method method, Object[] args, Object result, Throwable ex) throws Exception {
+        //no-op
+    }
 
     protected abstract Object invokeInternal(Object proxy, Method method, Object[] args) throws Throwable;
-
-    protected abstract void after(Method method, Object[] args, Object result, Throwable ex);
 }
