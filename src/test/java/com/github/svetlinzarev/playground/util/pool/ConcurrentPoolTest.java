@@ -1,6 +1,8 @@
 package com.github.svetlinzarev.playground.util.pool;
 
-import org.junit.jupiter.api.RepeatedTest;
+import com.github.svetlinzarev.playground.util.pool.Pool.Factory;
+import com.github.svetlinzarev.playground.util.pool.Pool.Recycler;
+import org.junit.Test;
 import org.junit.jupiter.api.Tag;
 
 import java.util.Random;
@@ -12,7 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
-class ConcurrentPoolTest {
+public class ConcurrentPoolTest {
     private static final int ITERATIONS_PER_THREAD = 250;
     private static final int MIN_SLEEP = 5;
     private static final int MAX_SLEEP = 15;
@@ -21,17 +23,17 @@ class ConcurrentPoolTest {
     private static final double MAX_HITRATE_DELTA = 0.01d;
 
     @Tag("slow")
-    @RepeatedTest(3)
+    @Test
     public void testHitRate() throws Exception {
         final AtomicInteger retrievals = new AtomicInteger();
         final AtomicInteger creations = new AtomicInteger();
 
-        final Pool.Recycler<Object> recycler = instance -> {
+        final Recycler<Object> recycler = instance -> {
             retrievals.incrementAndGet();
             return instance;
         };
 
-        final Pool.Factory<Object> factory = () -> {
+        final Factory<Object> factory = () -> {
             creations.incrementAndGet();
             return this;
         };
@@ -48,7 +50,7 @@ class ConcurrentPoolTest {
         for (int i = 0; i < nThreads; i++) {
             executorService.execute(() -> {
                 try {
-                    Random random = new Random();
+                    final Random random = new Random();
                     startBarrier.await();
                     for (int iterations = 0; iterations < ITERATIONS_PER_THREAD; iterations++) {
                         final Object instance = pool.borrowInstance();
@@ -74,7 +76,7 @@ class ConcurrentPoolTest {
 
     private void sleep(int millis) {
         try {
-            Thread.currentThread().sleep(millis);
+            Thread.sleep(millis);
         } catch (InterruptedException ex) {
             //no-op
         }
