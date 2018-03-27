@@ -1,6 +1,7 @@
 package com.github.svetlinzarev.playground.simulation.lottary;
 
-import java.util.Random;
+import com.github.svetlinzarev.playground.util.prng.RandomNumberGenerator;
+import com.github.svetlinzarev.playground.util.prng.XoRoShiRo128Plus;
 
 public final class Toto {
     private static final int NUMBER_OF_SIMULATIONS = 10_000_000;
@@ -16,13 +17,13 @@ public final class Toto {
         if (numberOfBallsToGuess > numberOfBallsToSelect) {
             throw new IllegalArgumentException("The number of guessed balls must be less than or equals to the number of balls to select.");
         }
-        final Random random = new Random();
+        final RandomNumberGenerator prng = new XoRoShiRo128Plus();
 
         int numberOfGuesses = 0;
         for (int sim = 0; sim < numberOfSimulations; sim++) {
             int ballsGuessed = 0;
             for (int selectedBalls = 0; selectedBalls < numberOfBallsToSelect; selectedBalls++) {
-                if (numberOfBallsToSelect - ballsGuessed > random.nextInt(numberOfBalls - selectedBalls)) {
+                if (numberOfBallsToSelect - ballsGuessed > prng.nextValue(0, numberOfBalls - selectedBalls)) {
                     ballsGuessed++;
                 }
             }
